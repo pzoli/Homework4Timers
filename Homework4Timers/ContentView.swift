@@ -11,76 +11,32 @@ struct EditSheetItem: Identifiable {
 struct TimerContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \TimerIntervalEntity.createdAt) private var storedItems: [TimerIntervalEntity]
+    @Query(sort: \SavedIntervalList.createdAt, order: .reverse) private var savedLists: [SavedIntervalList]
     @StateObject private var viewModel = TimerSequenceViewModel()
     
+    @AppStorage("didInsertSamples") private var didInsertSamples: Bool = false
+    @AppStorage("activePresetID") private var activePresetIDString: String = ""
+    @AppStorage("activePresetName") private var activePresetName: String = ""
+    
     @State private var activeSheetItem: EditSheetItem? = nil
+    @State private var isShowingPresetsSheet: Bool = false
+    @State private var isShowingSaveAsNewAlert: Bool = false
+    @State private var isShowingNewTemplateAlert: Bool = false
+    @State private var isShowingSaveSuccessToast: Bool = false
+    @State private var savePresetName: String = ""
+    
+    private var currentLoadedPreset: SavedIntervalList? {
+        guard let uuid = UUID(uuidString: activePresetIDString) else { return nil }
+        return savedLists.first(where: { $0.id == uuid })
+    }
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
-                GroupBox {
-                    VStack(spacing: 8) {
-                        if let current = viewModel.currentLabel, viewModel.isRunning {
-                            Text(current)
-                                .font(.title).bold()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Text("Hátralévő idő: \(formatTime(viewModel.remainingSeconds))")
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
-                            if let stepIdx = viewModel.currentStepIndex, let total = viewModel.totalStepsCount {
-                                Text("Lépés \(stepIdx + 1)/\(total)")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            } else if let idx = viewModel.progressIndex {
-                                Text("Lépés \(idx + 1)/\(storedItems.count)")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
-                        } else {
-                            Text("Nincs futó szakasz")
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                } label: {
-                    Label("Futás állapota", systemImage: "timer")
-                }
-                
-                List {
-                    if storedItems.isEmpty {
-                        ContentUnavailableView(
-                            "Nincs intervallum",
-                            systemImage: "timer",
-                            description: Text("Koppints a + gombra új intervallum vagy zárójel hozzáadásához.")
-                        )
-                    } else {
-                        ForEach(storedItems) { item in
-                            rowContent(for: item)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    activeSheetItem = EditSheetItem(id: item.id.uuidString, entity: item, defaultType: item.itemType)
-                                }
-                                .listRowBackground(rowBackground(for: item))
-                                .padding(.leading, CGFloat(depth(of: item, in: storedItems)) * 16)
-                        }
-                        .onDelete(perform: delete)
-                        .onMove(perform: move)
-                    }
-                }
-                
-                HStack(spacing: 16) {
-                    Button("Start") { viewModel.start() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.green)
-                        .frame(maxWidth: .infinity)
-                        .disabled(viewModel.isRunning || viewModel.buildExecutionPlan(items: storedItems).isEmpty)
-                    
-                    Button("Stop") { viewModel.stop() }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
-                        .frame(maxWidth: .infinity)
-                        .disabled(!viewModel.isRunning)
-                }
+                activePresetHeader
+                runningStatusBox
+                intervalListView
+                actionButtons
             }
             .padding()
             .navigationTitle("Intervallum időzítő")
@@ -89,10 +45,48 @@ struct TimerContentView: View {
                     EditButton()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        activeSheetItem = EditSheetItem(id: UUID().uuidString, entity: nil, defaultType: .interval)
-                    } label: {
-                        Image(systemName: "plus")
+                    HStack(spacing: 12) {
+                        Menu {
+                            Button {
+                                isShowingPresetsSheet = true
+                            } label: {
+                                Label("Mentett sablonok...", systemImage: "folder")
+                            }
+                            
+                            Divider()
+                            
+                            Button {
+                                handleNewTemplateAction()
+                            } label: {
+                                Label("Új sablon", systemImage: "doc.badge.plus")
+                            }
+                            
+                            Button {
+                                handleSaveAction()
+                            } label: {
+                                Label(
+                                    currentLoadedPreset != nil ? "Mentés (\(currentLoadedPreset!.name))" : "Mentés",
+                                    systemImage: "square.and.arrow.down"
+                                )
+                            }
+                            .disabled(storedItems.isEmpty)
+                            
+                            Button {
+                                savePresetName = activePresetName.isEmpty ? "" : "\(activePresetName) másolata"
+                                isShowingSaveAsNewAlert = true
+                            } label: {
+                                Label("Mentés újként...", systemImage: "square.and.arrow.down.on.square")
+                            }
+                            .disabled(storedItems.isEmpty)
+                        } label: {
+                            Image(systemName: "folder")
+                        }
+                        
+                        Button {
+                            activeSheetItem = EditSheetItem(id: UUID().uuidString, entity: nil, defaultType: .interval)
+                        } label: {
+                            Image(systemName: "plus")
+                        }
                     }
                 }
             }
@@ -119,17 +113,282 @@ struct TimerContentView: View {
                     }
                 }
             }
+            .sheet(isPresented: $isShowingPresetsSheet) {
+                SavedPresetsView(
+                    currentItems: storedItems,
+                    activePresetIDString: $activePresetIDString,
+                    activePresetName: $activePresetName
+                ) { preset in
+                    loadPreset(preset)
+                }
+            }
+            .alert("Mentés új sablonként", isPresented: $isShowingSaveAsNewAlert) {
+                TextField("Sablon neve", text: $savePresetName)
+                Button("Mégse", role: .cancel) { }
+                Button("Mentés") {
+                    saveAsNewPreset(name: savePresetName)
+                }
+                .disabled(savePresetName.trimmingCharacters(in: .whitespaces).isEmpty)
+            } message: {
+                Text("Add meg az új sablon nevét:")
+            }
+            .alert("Új üres sablon", isPresented: $isShowingNewTemplateAlert) {
+                Button("Mégse", role: .cancel) { }
+                Button("Új sablon létrehozása", role: .destructive) {
+                    createNewEmptyTemplate()
+                }
+            } message: {
+                Text("Biztosan új üres sablont szeretnél létrehozni? A munkaterület elemei törlődnek.")
+            }
+            .overlay(alignment: .bottom) {
+                if isShowingSaveSuccessToast {
+                    Text("Sablon sikeresen mentve!")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color.black.opacity(0.8))
+                        .clipShape(Capsule())
+                        .shadow(radius: 4)
+                        .padding(.bottom, 20)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
             .onAppear {
-                if storedItems.isEmpty {
+                if !didInsertSamples && storedItems.isEmpty {
                     for sample in TimerIntervalEntity.samples {
                         modelContext.insert(sample)
                     }
                     try? modelContext.save()
+                    didInsertSamples = true
                 }
                 viewModel.bind(items: storedItems)
             }
             .onChange(of: storedItems) { _, newValue in
                 viewModel.bind(items: newValue)
+            }
+        }
+    }
+    
+    private var activePresetHeader: some View {
+        HStack {
+            Label {
+                HStack(spacing: 4) {
+                    Text("Betöltött sablon:")
+                        .foregroundStyle(.secondary)
+                    Text(activePresetName.isEmpty ? "Nincs (Egyéni)" : activePresetName)
+                        .bold()
+                        .foregroundStyle(activePresetName.isEmpty ? .secondary : .primary)
+                }
+            } icon: {
+                Image(systemName: "folder.fill")
+                    .foregroundStyle(Color.accentColor)
+            }
+            .font(.subheadline)
+            
+            Spacer()
+            
+            if currentLoadedPreset != nil && !storedItems.isEmpty {
+                Button {
+                    handleSaveAction()
+                } label: {
+                    Label("Mentés", systemImage: "square.and.arrow.down")
+                        .font(.caption.bold())
+                }
+                .buttonStyle(.bordered)
+                .tint(.accentColor)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.secondary.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+    
+    private var runningStatusBox: some View {
+        GroupBox {
+            VStack(spacing: 8) {
+                if let current = viewModel.currentLabel, viewModel.isRunning {
+                    HStack {
+                        Text(current)
+                            .font(.title).bold()
+                        Spacer()
+                        if viewModel.isPaused {
+                            Text("Felfüggesztve")
+                                .font(.caption.bold())
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.orange.opacity(0.2))
+                                .foregroundStyle(.orange)
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    Text("Hátralévő idő: \(formatTime(viewModel.remainingSeconds))")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                    if let stepIdx = viewModel.currentStepIndex, let total = viewModel.totalStepsCount {
+                        Text("Lépés \(stepIdx + 1)/\(total)")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else if let idx = viewModel.progressIndex {
+                        Text("Lépés \(idx + 1)/\(storedItems.count)")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("Nincs futó szakasz")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        } label: {
+            Label("Futás állapota", systemImage: "timer")
+        }
+    }
+    
+    private var intervalListView: some View {
+        List {
+            if storedItems.isEmpty {
+                ContentUnavailableView(
+                    "Nincs intervallum",
+                    systemImage: "timer",
+                    description: Text("Koppints a + gombra új intervallum vagy zárójel hozzáadásához, vagy tölts be egy mentett sablont.")
+                )
+            } else {
+                ForEach(storedItems) { item in
+                    rowContent(for: item)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            activeSheetItem = EditSheetItem(id: item.id.uuidString, entity: item, defaultType: item.itemType)
+                        }
+                        .listRowBackground(rowBackground(for: item))
+                        .padding(.leading, CGFloat(depth(of: item, in: storedItems)) * 16)
+                }
+                .onDelete(perform: delete)
+                .onMove(perform: move)
+            }
+        }
+    }
+    
+    private var actionButtons: some View {
+        HStack(spacing: 16) {
+            Button {
+                if viewModel.isPaused {
+                    viewModel.resume()
+                } else {
+                    viewModel.start()
+                }
+            } label: {
+                Image(systemName: "play.fill")
+                    .font(.title3)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
+            .disabled((viewModel.isRunning && !viewModel.isPaused) || viewModel.buildExecutionPlan(items: storedItems).isEmpty)
+            .accessibilityLabel("Lejátszás")
+            
+            Button {
+                viewModel.pause()
+            } label: {
+                Image(systemName: "pause.fill")
+                    .font(.title3)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.orange)
+            .disabled(!viewModel.isRunning || viewModel.isPaused)
+            .accessibilityLabel("Felfüggesztés")
+            
+            Button {
+                viewModel.stop()
+            } label: {
+                Image(systemName: "square.fill")
+                    .font(.title3)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .disabled(!viewModel.isRunning)
+            .accessibilityLabel("Leállítás")
+        }
+    }
+    
+    private func handleSaveAction() {
+        if let loadedPreset = currentLoadedPreset {
+            loadedPreset.items = storedItems.map { SavedIntervalItem(from: $0) }
+            try? modelContext.save()
+            showToast()
+        } else {
+            savePresetName = activePresetName
+            isShowingSaveAsNewAlert = true
+        }
+    }
+    
+    private func saveAsNewPreset(name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        
+        let savedItems = storedItems.map { SavedIntervalItem(from: $0) }
+        let newList = SavedIntervalList(name: trimmed, createdAt: Date(), items: savedItems)
+        modelContext.insert(newList)
+        try? modelContext.save()
+        
+        activePresetIDString = newList.id.uuidString
+        activePresetName = trimmed
+        showToast()
+    }
+    
+    private func handleNewTemplateAction() {
+        if storedItems.isEmpty {
+            createNewEmptyTemplate()
+        } else {
+            isShowingNewTemplateAlert = true
+        }
+    }
+    
+    private func createNewEmptyTemplate() {
+        if viewModel.isRunning {
+            viewModel.stop()
+        }
+        for item in storedItems {
+            modelContext.delete(item)
+        }
+        try? modelContext.save()
+        activePresetIDString = ""
+        activePresetName = ""
+        viewModel.bind(items: [])
+    }
+    
+    private func loadPreset(_ preset: SavedIntervalList) {
+        if viewModel.isRunning {
+            viewModel.stop()
+        }
+        for item in storedItems {
+            modelContext.delete(item)
+        }
+        let newEntities = preset.createTimerIntervalEntities()
+        for entity in newEntities {
+            modelContext.insert(entity)
+        }
+        try? modelContext.save()
+        activePresetIDString = preset.id.uuidString
+        activePresetName = preset.name
+        viewModel.bind(items: newEntities)
+    }
+    
+    private func showToast() {
+        withAnimation {
+            isShowingSaveSuccessToast = true
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            await MainActor.run {
+                withAnimation {
+                    isShowingSaveSuccessToast = false
+                }
             }
         }
     }
@@ -333,7 +592,7 @@ struct IntervalEditSheet: View {
 
 #Preview {
     TimerContentView()
-        .modelContainer(for: TimerIntervalEntity.self, inMemory: true)
+        .modelContainer(for: [TimerIntervalEntity.self, SavedIntervalList.self], inMemory: true)
 }
 
 private extension View {

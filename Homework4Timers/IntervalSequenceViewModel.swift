@@ -15,6 +15,7 @@ final class TimerSequenceViewModel: ObservableObject {
     @Published var items: [TimerIntervalEntity] = []
     @Published var currentLabel: String? = nil
     @Published var isRunning: Bool = false
+    @Published var isPaused: Bool = false
     @Published var progressIndex: Int? = nil
     @Published var currentStepIndex: Int? = nil
     @Published var totalStepsCount: Int? = nil
@@ -95,9 +96,14 @@ final class TimerSequenceViewModel: ObservableObject {
     }
     
     func start() {
+        if isRunning && isPaused {
+            resume()
+            return
+        }
         let plan = buildExecutionPlan(items: items)
         guard !isRunning, !plan.isEmpty else { return }
         isRunning = true
+        isPaused = false
         currentLabel = nil
         progressIndex = nil
         currentStepIndex = nil
@@ -119,7 +125,13 @@ final class TimerSequenceViewModel: ObservableObject {
                 
                 while self.remainingSeconds > 0 {
                     if Task.isCancelled { break }
+                    if self.isPaused {
+                        try? await Task.sleep(nanoseconds: 100_000_000)
+                        continue
+                    }
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    if Task.isCancelled { break }
+                    if self.isPaused { continue }
                     await MainActor.run { self.remainingSeconds -= 1 }
                 }
                 if Task.isCancelled { break }
@@ -127,6 +139,7 @@ final class TimerSequenceViewModel: ObservableObject {
             }
             await MainActor.run {
                 self.isRunning = false
+                self.isPaused = false
                 self.progressIndex = nil
                 self.currentStepIndex = nil
                 self.totalStepsCount = nil
@@ -137,11 +150,22 @@ final class TimerSequenceViewModel: ObservableObject {
         }
     }
     
+    func pause() {
+        guard isRunning, !isPaused else { return }
+        isPaused = true
+    }
+    
+    func resume() {
+        guard isRunning, isPaused else { return }
+        isPaused = false
+    }
+    
     func stop() {
         runner?.cancel()
         runner = nil
         stopTicking()
         isRunning = false
+        isPaused = false
         progressIndex = nil
         currentStepIndex = nil
         totalStepsCount = nil
@@ -156,7 +180,7 @@ final class TimerSequenceViewModel: ObservableObject {
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self = self else { return }
-                if self.isRunning {
+                if self.isRunning && !self.isPaused {
                     self.objectWillChange.send()
                 }
             }

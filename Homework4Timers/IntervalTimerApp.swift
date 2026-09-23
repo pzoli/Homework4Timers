@@ -7,6 +7,6 @@ struct IntervalTimerApp: App {
         WindowGroup {
             TimerContentView()
         }
-        .modelContainer(for: TimerIntervalEntity.self)
+        .modelContainer(for: [TimerIntervalEntity.self, SavedIntervalList.self])
     }
 }
