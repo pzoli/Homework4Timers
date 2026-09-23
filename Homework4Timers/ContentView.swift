@@ -7,8 +7,8 @@ struct TimerContentView: View {
     @Query(sort: \TimerIntervalEntity.createdAt) private var storedItems: [TimerIntervalEntity]
     @StateObject private var viewModel = TimerSequenceViewModel()
     
-    @State private var minutesText: String = ""
-    @State private var labelText: String = ""
+    @State private var selectedItemForEdit: TimerIntervalEntity? = nil
+    @State private var isSheetPresented: Bool = false
     
     var body: some View {
         NavigationStack {
@@ -39,44 +39,68 @@ struct TimerContentView: View {
                 
                 List {
                     ForEach(storedItems) { item in
-                        HStack {
-                            Text("\(item.minutes) perc")
-                                .monospacedDigit()
-                            Text(item.label)
-                                .lineLimit(1)
-                            Spacer()
+                        Button {
+                            selectedItemForEdit = item
+                            isSheetPresented = true
+                        } label: {
+                            HStack {
+                                Text("\(item.minutes) perc")
+                                    .monospacedDigit()
+                                    .foregroundStyle(.primary)
+                                Text(item.label)
+                                    .lineLimit(1)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: "pencil")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
-                        .contentShape(Rectangle())
                         .listRowBackground(rowBackground(for: item))
                     }
                     .onDelete(perform: delete)
-                    .onMove(perform: move)
                 }
                 
-                HStack {
-                    TextField("Perc", text: $minutesText)
-                        .applyNumberPadKeyboard()
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 100)
-                    TextField("Címke", text: $labelText)
-                        .textFieldStyle(.roundedBorder)
-                    Button("Hozzáadás") { add() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!canAdd)
-                }
-                
-                HStack {
+                HStack(spacing: 16) {
                     Button("Start") { viewModel.start() }
                         .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                        .frame(maxWidth: .infinity)
                         .disabled(viewModel.isRunning || storedItems.isEmpty)
+                    
                     Button("Stop") { viewModel.stop() }
                         .buttonStyle(.bordered)
+                        .tint(.red)
+                        .frame(maxWidth: .infinity)
                         .disabled(!viewModel.isRunning)
                 }
             }
             .padding()
             .navigationTitle("Intervallum időzítő")
-            .toolbar { EditButton() }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    EditButton()
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        selectedItemForEdit = nil
+                        isSheetPresented = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $isSheetPresented) {
+                IntervalEditSheet(itemToEdit: selectedItemForEdit) { minutes, label in
+                    if let item = selectedItemForEdit {
+                        item.minutes = minutes
+                        item.label = label
+                    } else {
+                        let new = TimerIntervalEntity(minutes: minutes, label: label)
+                        modelContext.insert(new)
+                    }
+                }
+            }
             .onAppear { viewModel.bind(items: storedItems) }
             .onChange(of: storedItems) { _, newValue in
                 viewModel.bind(items: newValue)
@@ -84,25 +108,8 @@ struct TimerContentView: View {
         }
     }
     
-    private var canAdd: Bool {
-        if let m = Int(minutesText), m > 0, !labelText.trimmingCharacters(in: .whitespaces).isEmpty { return true }
-        return false
-    }
-    
-    private func add() {
-        guard let m = Int(minutesText), m > 0 else { return }
-        let item = TimerIntervalEntity(minutes: m, label: labelText.trimmingCharacters(in: .whitespaces))
-        modelContext.insert(item)
-        minutesText = ""
-        labelText = ""
-    }
-    
     private func delete(at offsets: IndexSet) {
         for index in offsets { modelContext.delete(storedItems[index]) }
-    }
-    
-    private func move(from source: IndexSet, to destination: Int) {
-        // Ha tartós sorrendre van szükség, adjunk orderIndex mezőt a modellhez.
     }
     
     private func rowBackground(for item: TimerIntervalEntity) -> Color? {
@@ -117,6 +124,72 @@ struct TimerContentView: View {
         let m = seconds / 60
         let s = seconds % 60
         return String(format: "%02d:%02d", m, s)
+    }
+}
+
+struct IntervalEditSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    let itemToEdit: TimerIntervalEntity?
+    let onSave: (Int, String) -> Void
+    
+    @State private var minutesText: String = ""
+    @State private var labelText: String = ""
+    
+    init(itemToEdit: TimerIntervalEntity?, onSave: @escaping (Int, String) -> Void) {
+        self.itemToEdit = itemToEdit
+        self.onSave = onSave
+        _minutesText = State(initialValue: itemToEdit != nil ? "\(itemToEdit!.minutes)" : "")
+        _labelText = State(initialValue: itemToEdit?.label ?? "")
+    }
+    
+    private var isFormValid: Bool {
+        if let m = Int(minutesText), m > 0, !labelText.trimmingCharacters(in: .whitespaces).isEmpty {
+            return true
+        }
+        return false
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Intervallum adatok")) {
+                    HStack {
+                        Text("Perc")
+                        Spacer()
+                        TextField("Perc", text: $minutesText)
+                            .applyNumberPadKeyboard()
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 100)
+                    }
+                    
+                    HStack {
+                        Text("Címke")
+                        Spacer()
+                        TextField("Címke", text: $labelText)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+            }
+            .navigationTitle(itemToEdit == nil ? "Új felvétel" : "Szerkesztés")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Mégse") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(itemToEdit == nil ? "Hozzáadás" : "Mentés") {
+                        if let m = Int(minutesText) {
+                            onSave(m, labelText.trimmingCharacters(in: .whitespaces))
+                            dismiss()
+                        }
+                    }
+                    .disabled(!isFormValid)
+                }
+            }
+        }
     }
 }
 
