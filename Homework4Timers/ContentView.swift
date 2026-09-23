@@ -10,6 +10,7 @@ struct EditSheetItem: Identifiable {
 
 struct TimerContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \TimerIntervalEntity.createdAt) private var storedItems: [TimerIntervalEntity]
     @Query(sort: \SavedIntervalList.createdAt, order: .reverse) private var savedLists: [SavedIntervalList]
     @StateObject private var viewModel = TimerSequenceViewModel()
@@ -166,6 +167,11 @@ struct TimerContentView: View {
             }
             .onChange(of: storedItems) { _, newValue in
                 viewModel.bind(items: newValue)
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    viewModel.refreshRemainingTime()
+                }
             }
         }
     }
