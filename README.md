@@ -9,3 +9,4 @@ You can repeat intervals any time like a professional scheduler.
 ![Runing intervals 5](docs/IMG_0024.PNG)
 ![Runing intervals 6](docs/IMG_0018.PNG)
 ![Runing intervals 7](docs/IMG_0019.PNG)
+![Runing intervals 8](docs/IMG_0026.PNG)
