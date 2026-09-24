@@ -21,6 +21,7 @@ struct TimerContentView: View {
     
     @State private var activeSheetItem: EditSheetItem? = nil
     @State private var isShowingPresetsSheet: Bool = false
+    @State private var isShowingSettingsSheet: Bool = false
     @State private var isShowingSaveAsNewAlert: Bool = false
     @State private var isShowingNewTemplateAlert: Bool = false
     @State private var isShowingSaveSuccessToast: Bool = false
@@ -47,11 +48,23 @@ struct TimerContentView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
+                        Button {
+                            isShowingSettingsSheet = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
+
                         Menu {
                             Button {
                                 isShowingPresetsSheet = true
                             } label: {
                                 Label("Mentett sablonok...", systemImage: "folder")
+                            }
+                            
+                            Button {
+                                isShowingSettingsSheet = true
+                            } label: {
+                                Label("Beállítások", systemImage: "gearshape")
                             }
                             
                             Divider()
@@ -76,7 +89,7 @@ struct TimerContentView: View {
                                 savePresetName = activePresetName.isEmpty ? "" : "\(activePresetName) másolata"
                                 isShowingSaveAsNewAlert = true
                             } label: {
-                                Label("Mentés újként...", systemImage: "square.and.arrow.down.on.square")
+                                Label("Mentés újaként...", systemImage: "square.and.arrow.down.on.square")
                             }
                             .disabled(storedItems.isEmpty)
                         } label: {
@@ -122,6 +135,9 @@ struct TimerContentView: View {
                 ) { preset in
                     loadPreset(preset)
                 }
+            }
+            .sheet(isPresented: $isShowingSettingsSheet) {
+                SettingsView()
             }
             .alert("Mentés új sablonként", isPresented: $isShowingSaveAsNewAlert) {
                 TextField("Sablon neve", text: $savePresetName)
@@ -171,6 +187,7 @@ struct TimerContentView: View {
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     viewModel.refreshRemainingTime()
+                    viewModel.updateAutoContinue()
                 }
             }
         }
@@ -219,7 +236,15 @@ struct TimerContentView: View {
                         Text(current)
                             .font(.title).bold()
                         Spacer()
-                        if viewModel.isPaused {
+                        if viewModel.isWaitingForAcknowledgment {
+                            Text("Nyugtázásra vár")
+                                .font(.caption.bold())
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.blue.opacity(0.2))
+                                .foregroundStyle(.blue)
+                                .clipShape(Capsule())
+                        } else if viewModel.isPaused {
                             Text("Felfüggesztve")
                                 .font(.caption.bold())
                                 .padding(.horizontal, 8)
@@ -231,17 +256,37 @@ struct TimerContentView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     
-                    Text("Hátralévő idő: \(formatTime(viewModel.remainingSeconds))")
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                    if let stepIdx = viewModel.currentStepIndex, let total = viewModel.totalStepsCount {
-                        Text("Lépés \(stepIdx + 1)/\(total)")
-                            .font(.footnote)
+                    if viewModel.isWaitingForAcknowledgment {
+                        VStack(spacing: 8) {
+                            Text("Az intervallum lejárt! Koppints a gombra a következő szakasz indításához.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                            
+                            Button {
+                                viewModel.acknowledgeNextStep()
+                            } label: {
+                                Label("Következő szakasz indítása", systemImage: "play.circle.fill")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 6)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.blue)
+                        }
+                    } else {
+                        Text("Hátralévő idő: \(formatTime(viewModel.remainingSeconds))")
+                            .monospacedDigit()
                             .foregroundStyle(.secondary)
-                    } else if let idx = viewModel.progressIndex {
-                        Text("Lépés \(idx + 1)/\(storedItems.count)")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        if let stepIdx = viewModel.currentStepIndex, let total = viewModel.totalStepsCount {
+                            Text("Lépés \(stepIdx + 1)/\(total)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        } else if let idx = viewModel.progressIndex {
+                            Text("Lépés \(idx + 1)/\(storedItems.count)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 } else {
                     Text("Nincs futó szakasz")
@@ -281,7 +326,9 @@ struct TimerContentView: View {
     private var actionButtons: some View {
         HStack(spacing: 16) {
             Button {
-                if viewModel.isPaused {
+                if viewModel.isWaitingForAcknowledgment {
+                    viewModel.acknowledgeNextStep()
+                } else if viewModel.isPaused {
                     viewModel.resume()
                 } else {
                     viewModel.start()
@@ -293,7 +340,7 @@ struct TimerContentView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.green)
-            .disabled((viewModel.isRunning && !viewModel.isPaused) || viewModel.buildExecutionPlan(items: storedItems).isEmpty)
+            .disabled((viewModel.isRunning && !viewModel.isPaused && !viewModel.isWaitingForAcknowledgment) || viewModel.buildExecutionPlan(items: storedItems).isEmpty)
             .accessibilityLabel("Lejátszás")
             
             Button {
@@ -305,7 +352,7 @@ struct TimerContentView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.orange)
-            .disabled(!viewModel.isRunning || viewModel.isPaused)
+            .disabled(!viewModel.isRunning || viewModel.isPaused || viewModel.isWaitingForAcknowledgment)
             .accessibilityLabel("Felfüggesztés")
             
             Button {

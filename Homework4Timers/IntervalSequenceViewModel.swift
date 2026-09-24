@@ -19,10 +19,16 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
     @Published var currentLabel: String? = nil
     @Published var isRunning: Bool = false
     @Published var isPaused: Bool = false
+    @Published var isWaitingForAcknowledgment: Bool = false
     @Published var progressIndex: Int? = nil
     @Published var currentStepIndex: Int? = nil
     @Published var totalStepsCount: Int? = nil
     @Published var remainingSeconds: Int = 0
+    @Published var autoContinue: Bool = false {
+        didSet {
+            UserDefaults.standard.set(autoContinue, forKey: "autoContinueNextInterval")
+        }
+    }
     
     private var runner: Task<Void, Never>? = nil
     private var tickCancellable: AnyCancellable?
@@ -36,7 +42,9 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
 
     override init() {
         super.init()
+        self.autoContinue = UserDefaults.standard.bool(forKey: "autoContinueNextInterval")
         UNUserNotificationCenter.current().delegate = self
+        setupNotificationCategories()
         prepareHaptics()
         requestNotificationPermission()
         setupNotificationObservers()
@@ -46,6 +54,10 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         stopTicking()
         endBackgroundTask()
         deactivateAudioSession()
+    }
+
+    func updateAutoContinue() {
+        self.autoContinue = UserDefaults.standard.bool(forKey: "autoContinueNextInterval")
     }
 
     func bind(items: [TimerIntervalEntity]) {
@@ -118,11 +130,17 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
             resume()
             return
         }
+        if isRunning && isWaitingForAcknowledgment {
+            acknowledgeNextStep()
+            return
+        }
         let plan = buildExecutionPlan(items: items)
         guard !isRunning, !plan.isEmpty else { return }
         
+        updateAutoContinue()
         isRunning = true
         isPaused = false
+        isWaitingForAcknowledgment = false
         currentLabel = nil
         progressIndex = nil
         currentStepIndex = nil
@@ -140,6 +158,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
                 let stepDuration = max(0, step.item.minutes * 60)
                 
                 await MainActor.run {
+                    self.isWaitingForAcknowledgment = false
                     self.currentLabel = step.item.label
                     self.progressIndex = step.originalIndex
                     self.currentStepIndex = stepIdx
@@ -172,6 +191,17 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
                 
                 if Task.isCancelled { break }
                 self.notifyExpiration(title: step.item.label)
+                
+                if !self.autoContinue && stepIdx < plan.count - 1 {
+                    await MainActor.run {
+                        self.isWaitingForAcknowledgment = true
+                    }
+                    
+                    while self.isWaitingForAcknowledgment && self.isRunning {
+                        if Task.isCancelled { break }
+                        try? await Task.sleep(nanoseconds: 200_000_000)
+                    }
+                }
             }
             
             await MainActor.run {
@@ -180,9 +210,15 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         }
     }
 
+    func acknowledgeNextStep() {
+        guard isWaitingForAcknowledgment else { return }
+        isWaitingForAcknowledgment = false
+    }
+
     func pause() {
         guard isRunning, !isPaused else { return }
         isPaused = true
+        isWaitingForAcknowledgment = false
         refreshRemainingTime()
         stepEndDate = nil
         cancelPendingNotifications()
@@ -212,6 +248,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         
         isRunning = false
         isPaused = false
+        isWaitingForAcknowledgment = false
         progressIndex = nil
         currentStepIndex = nil
         totalStepsCount = nil
@@ -221,7 +258,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
     }
 
     func refreshRemainingTime() {
-        guard isRunning, !isPaused, let endDate = stepEndDate else { return }
+        guard isRunning, !isPaused, !isWaitingForAcknowledgment, let endDate = stepEndDate else { return }
         let diff = max(0, Int(ceil(endDate.timeIntervalSinceNow)))
         if remainingSeconds != diff {
             remainingSeconds = diff
@@ -243,36 +280,40 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
             content.title = titleText
             content.body = "Időzítés lejárt!"
             content.sound = .default
+            content.categoryIdentifier = "TIMER_EXPIRED"
             
             let trigger = UNTimeIntervalNotificationTrigger(timeInterval: accumulatedTime, repeats: false)
             let request = UNNotificationRequest(identifier: "timer_step_\(fromStepIndex)_end", content: content, trigger: trigger)
             UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
         }
         
-        for idx in (fromStepIndex + 1)..<plan.count {
-            let step = plan[idx]
-            let duration = TimeInterval(max(0, step.item.minutes * 60))
-            let titleText = step.item.label.isEmpty ? "Intervallum" : step.item.label
-            
-            let startContent = UNMutableNotificationContent()
-            startContent.title = titleText
-            startContent.body = "Új szakasz kezdődik"
-            startContent.sound = .default
-            
-            let startTrigger = UNTimeIntervalNotificationTrigger(timeInterval: accumulatedTime, repeats: false)
-            let startReq = UNNotificationRequest(identifier: "timer_step_\(idx)_start", content: startContent, trigger: startTrigger)
-            UNUserNotificationCenter.current().add(startReq, withCompletionHandler: nil)
-            
-            accumulatedTime += duration
-            
-            let endContent = UNMutableNotificationContent()
-            endContent.title = titleText
-            endContent.body = "Időzítés lejárt!"
-            endContent.sound = .default
-            
-            let endTrigger = UNTimeIntervalNotificationTrigger(timeInterval: accumulatedTime, repeats: false)
-            let endReq = UNNotificationRequest(identifier: "timer_step_\(idx)_end", content: endContent, trigger: endTrigger)
-            UNUserNotificationCenter.current().add(endReq, withCompletionHandler: nil)
+        if autoContinue {
+            for idx in (fromStepIndex + 1)..<plan.count {
+                let step = plan[idx]
+                let duration = TimeInterval(max(0, step.item.minutes * 60))
+                let titleText = step.item.label.isEmpty ? "Intervallum" : step.item.label
+                
+                let startContent = UNMutableNotificationContent()
+                startContent.title = titleText
+                startContent.body = "Új szakasz kezdődik"
+                startContent.sound = .default
+                
+                let startTrigger = UNTimeIntervalNotificationTrigger(timeInterval: accumulatedTime, repeats: false)
+                let startReq = UNNotificationRequest(identifier: "timer_step_\(idx)_start", content: startContent, trigger: startTrigger)
+                UNUserNotificationCenter.current().add(startReq, withCompletionHandler: nil)
+                
+                accumulatedTime += duration
+                
+                let endContent = UNMutableNotificationContent()
+                endContent.title = titleText
+                endContent.body = "Időzítés lejárt!"
+                endContent.sound = .default
+                endContent.categoryIdentifier = "TIMER_EXPIRED"
+                
+                let endTrigger = UNTimeIntervalNotificationTrigger(timeInterval: accumulatedTime, repeats: false)
+                let endReq = UNNotificationRequest(identifier: "timer_step_\(idx)_end", content: endContent, trigger: endTrigger)
+                UNUserNotificationCenter.current().add(endReq, withCompletionHandler: nil)
+            }
         }
     }
 
@@ -332,7 +373,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self = self else { return }
-                if self.isRunning && !self.isPaused {
+                if self.isRunning && !self.isPaused && !self.isWaitingForAcknowledgment {
                     self.refreshRemainingTime()
                     self.objectWillChange.send()
                 }
@@ -345,12 +386,38 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
     }
 
     // MARK: - UNUserNotificationCenterDelegate
+    private func setupNotificationCategories() {
+        let acknowledgeAction = UNNotificationAction(
+            identifier: "ACKNOWLEDGE_ACTION",
+            title: "Következő szakasz indítása",
+            options: [.foreground]
+        )
+        let category = UNNotificationCategory(
+            identifier: "TIMER_EXPIRED",
+            actions: [acknowledgeAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([category])
+    }
+
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .sound])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        Task { @MainActor in
+            self.acknowledgeNextStep()
+        }
+        completionHandler()
     }
 
     // MARK: - Notifications, Sound & Haptics
@@ -374,6 +441,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         content.title = title.isEmpty ? "Intervallum" : title
         content.body = "Időzítés lejárt!"
         content.sound = .default
+        content.categoryIdentifier = "TIMER_EXPIRED"
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
         playSound()
