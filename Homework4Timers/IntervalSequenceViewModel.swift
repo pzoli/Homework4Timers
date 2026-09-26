@@ -5,6 +5,7 @@ import UserNotifications
 import CoreHaptics
 import AudioToolbox
 import AVFoundation
+import AVFAudio
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -357,6 +358,28 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         }
     }
 
+    func triggerSpeechInBackground(text: String) {
+        var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
+
+        // Időt kérünk az iOS-től a háttérbeni feladat elindítására
+        backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "TextToSpeechTask") {
+            // Ha lejár az idő, lezárjuk a taskot
+            UIApplication.shared.endBackgroundTask(backgroundTaskID)
+            backgroundTaskID = .invalid
+        }
+
+        // Elindítjuk a felolvasást
+        SpeechManager.shared.speak(text: text)
+
+        // Hagyunk 3 másodpercet a szintetizátornak, hogy elindítsa az audio streamet, majd visszaadjuk a task-ot
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            if backgroundTaskID != .invalid {
+                UIApplication.shared.endBackgroundTask(backgroundTaskID)
+                backgroundTaskID = .invalid
+            }
+        }
+    }
+    
     private func scheduleNotificationForSingleStep(stepIndex: Int) {
         cancelPendingNotifications()
         guard stepIndex < executionPlan.count, let stepStart = currentStepStartDate else { return }
@@ -390,7 +413,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
     private func setupAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
             try session.setActive(true)
         } catch {
             print("AudioSession configuration failed: \(error)")
@@ -497,7 +520,8 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         content.interruptionLevel = .timeSensitive
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
-        playSound()
+        //playSound()
+        triggerSpeechInBackground(text: title + " " + String(localized: "szakasz kezdődik"))
         playHaptic()
     }
 
@@ -510,7 +534,8 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         content.categoryIdentifier = "TIMER_EXPIRED"
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
-        playSound()
+        //playSound()
+        triggerSpeechInBackground(text: title + " " + String(localized: "szakasz lejárt"))
         playHaptic()
     }
 

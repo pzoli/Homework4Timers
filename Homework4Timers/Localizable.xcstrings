@@ -726,6 +726,33 @@
         }
       }
     },
+    "szakasz kezdődik" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "section starting"
+          }
+        }
+      }
+    },
+    "szakasz lejárt" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "section expired"
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "szakasz lejárt"
+          }
+        }
+      }
+    },
     "Szerkesztés" : {
       "extractionState" : "manual",
       "localizations" : {
