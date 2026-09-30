@@ -273,6 +273,12 @@
         }
       }
     },
+    "Exportálás" : {
+
+    },
+    "Exportálás..." : {
+
+    },
     "Felfüggesztés" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -371,6 +377,9 @@
           }
         }
       }
+    },
+    "Importálás..." : {
+
     },
     "Intervallum" : {
       "extractionState" : "manual",
@@ -616,6 +625,9 @@
         }
       }
     },
+    "Mentsd el a jelenlegi intervallum sorozatodat, vagy importálj sablonokat JSON fájlból." : {
+
+    },
     "Név szerkesztése" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -726,6 +738,12 @@
         }
       }
     },
+    "OK" : {
+
+    },
+    "Összes exportálása..." : {
+
+    },
     "Perc" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -758,6 +776,9 @@
           }
         }
       }
+    },
+    "Sablonok importálása" : {
+
     },
     "Sorozat mentése újként" : {
       "extractionState" : "manual",
