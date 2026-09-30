@@ -23,7 +23,7 @@ final class SpeechManager: NSObject {
     private func configureAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+            try session.setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers, .duckOthers])
             try session.setActive(true)
         } catch {
             print("Nem sikerült az AudioSession konfigurációja: \(error)")

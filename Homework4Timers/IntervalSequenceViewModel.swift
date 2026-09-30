@@ -55,6 +55,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
     private var currentStepStartDate: Date? = nil
     private var pausedRemainingSeconds: Int? = nil
     private var lastNotifiedStepIndex: Int? = nil
+    private var silentAudioPlayer: AVAudioPlayer?
     
     private var tickCancellable: AnyCancellable?
     private var hapticEngine: CHHapticEngine?
@@ -76,7 +77,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
     deinit {
         stopTicking()
         endBackgroundTask()
-        deactivateAudioSession()
+        stopSilentAudio()
     }
 
     func updateAutoContinue() {
@@ -172,7 +173,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         currentStepStartDate = now
         pausedRemainingSeconds = nil
         
-        setupAudioSession()
+        startSilentAudio()
         startBackgroundTask()
         startTicking()
         
@@ -214,6 +215,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         isWaitingForAcknowledgment = false
         pausedRemainingSeconds = remainingSeconds
         cancelPendingNotifications()
+        stopSilentAudio()
     }
 
     func resume() {
@@ -238,6 +240,9 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         }
         
         pausedRemainingSeconds = nil
+        startSilentAudio()
+        startBackgroundTask()
+        startTicking()
         refreshRemainingTime()
     }
 
@@ -249,7 +254,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         stopTicking()
         cancelPendingNotifications()
         endBackgroundTask()
-        deactivateAudioSession()
+        stopSilentAudio()
         
         isRunning = false
         isPaused = false
@@ -437,11 +442,71 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
     }
 
+    // MARK: - Silent Audio for Lock Screen Background Execution
+    private func startSilentAudio() {
+        setupAudioSession()
+        do {
+            let silentData = createSilentWAVData()
+            silentAudioPlayer = try AVAudioPlayer(data: silentData)
+            silentAudioPlayer?.numberOfLoops = -1
+            silentAudioPlayer?.volume = 0.05
+            silentAudioPlayer?.prepareToPlay()
+            silentAudioPlayer?.play()
+        } catch {
+            print("Failed to start silent audio player: \(error)")
+        }
+    }
+
+    private func stopSilentAudio() {
+        silentAudioPlayer?.stop()
+        silentAudioPlayer = nil
+        deactivateAudioSession()
+    }
+
+    private func createSilentWAVData(duration: Double = 1.0) -> Data {
+        let sampleRate: UInt32 = 44100
+        let numChannels: UInt16 = 1
+        let bitsPerSample: UInt16 = 16
+        let numSamples = UInt32(Double(sampleRate) * duration)
+        let dataSize = numSamples * UInt32(numChannels * (bitsPerSample / 8))
+        
+        var data = Data()
+        
+        // RIFF header
+        data.append(contentsOf: [0x52, 0x49, 0x46, 0x46]) // "RIFF"
+        let chunkSize = UInt32(36 + dataSize)
+        withUnsafeBytes(of: chunkSize.littleEndian) { data.append(contentsOf: $0) }
+        data.append(contentsOf: [0x57, 0x41, 0x56, 0x45]) // "WAVE"
+        
+        // fmt subchunk
+        data.append(contentsOf: [0x66, 0x6D, 0x74, 0x20]) // "fmt "
+        let subchunk1Size: UInt32 = 16
+        withUnsafeBytes(of: subchunk1Size.littleEndian) { data.append(contentsOf: $0) }
+        let audioFormat: UInt16 = 1 // PCM
+        withUnsafeBytes(of: audioFormat.littleEndian) { data.append(contentsOf: $0) }
+        withUnsafeBytes(of: numChannels.littleEndian) { data.append(contentsOf: $0) }
+        withUnsafeBytes(of: sampleRate.littleEndian) { data.append(contentsOf: $0) }
+        let byteRate = sampleRate * UInt32(numChannels * (bitsPerSample / 8))
+        withUnsafeBytes(of: byteRate.littleEndian) { data.append(contentsOf: $0) }
+        let blockAlign = numChannels * (bitsPerSample / 8)
+        withUnsafeBytes(of: blockAlign.littleEndian) { data.append(contentsOf: $0) }
+        withUnsafeBytes(of: bitsPerSample.littleEndian) { data.append(contentsOf: $0) }
+        
+        // data subchunk
+        data.append(contentsOf: [0x64, 0x61, 0x74, 0x61]) // "data"
+        withUnsafeBytes(of: dataSize.littleEndian) { data.append(contentsOf: $0) }
+        
+        // Zero samples (silence)
+        data.append(Data(repeating: 0, count: Int(dataSize)))
+        
+        return data
+    }
+
     // MARK: - Audio Session & Background Task
     private func setupAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
+            try session.setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers, .duckOthers])
             try session.setActive(true)
         } catch {
             print("AudioSession configuration failed: \(error)")
