@@ -10,6 +10,16 @@ import AVFAudio
 import UIKit
 #endif
 
+extension String {
+    func localized(for language: String) -> String {
+        guard let path = Bundle.main.path(forResource: language, ofType: "lproj"),
+              let bundle = Bundle(path: path) else {
+            return NSLocalizedString(self, comment: "")
+        }
+        return NSLocalizedString(self, bundle: bundle, comment: "")
+    }
+}
+
 struct ExecutionStep {
     let item: TimerIntervalEntity
     let originalIndex: Int
@@ -34,6 +44,10 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
             UserDefaults.standard.set(newValue, forKey: "autoContinueNextInterval")
             objectWillChange.send()
         }
+    }
+    
+    private var currentLanguage: String {
+        UserDefaults.standard.string(forKey: "appLanguage") ?? "hu"
     }
     
     private var executionPlan: [ExecutionStep] = []
@@ -330,6 +344,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         cancelPendingNotifications()
         guard autoContinue, let startSeq = sequenceStartDate else { return }
         
+        let lang = currentLanguage
         let now = Date()
         var cumulative: Double = 0
         
@@ -342,10 +357,16 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
                 let timeInterval = stepEndDate.timeIntervalSince(now)
                 
                 if timeInterval > 0 {
-                    let titleText = step.item.label.isEmpty ? "Intervallum" : step.item.label
+                    let defaultTitle = "Intervallum".localized(for: lang)
+                    let rawTitle = step.item.label.trimmingCharacters(in: .whitespaces)
+                    let titleText = rawTitle.isEmpty
+                        ? defaultTitle
+                        : rawTitle.localized(for: lang)
                     let content = UNMutableNotificationContent()
                     content.title = titleText
-                    content.body = (idx == executionPlan.count - 1) ? "Az összes időzítés lejárt!" : "Időzítés lejárt!"
+                    content.body = (idx == executionPlan.count - 1)
+                        ? "Az összes időzítés lejárt!".localized(for: lang)
+                        : "Időzítés lejárt!".localized(for: lang)
                     content.sound = .defaultRingtone
                     content.interruptionLevel = .timeSensitive
                     content.categoryIdentifier = "TIMER_EXPIRED"
@@ -384,6 +405,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         cancelPendingNotifications()
         guard stepIndex < executionPlan.count, let stepStart = currentStepStartDate else { return }
         
+        let lang = currentLanguage
         let now = Date()
         let step = executionPlan[stepIndex]
         let duration = Double(max(0, step.item.minutes * 60))
@@ -391,10 +413,16 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         let timeInterval = endDate.timeIntervalSince(now)
         
         if timeInterval > 0 {
-            let titleText = step.item.label.isEmpty ? "Intervallum" : step.item.label
+            let defaultTitle = "Intervallum".localized(for: lang)
+            let rawTitle = step.item.label.trimmingCharacters(in: .whitespaces)
+            let titleText = rawTitle.isEmpty
+                ? defaultTitle
+                : rawTitle.localized(for: lang)
             let content = UNMutableNotificationContent()
             content.title = titleText
-            content.body = (stepIndex == executionPlan.count - 1) ? "Az összes időzítés lejárt!" : "Időzítés lejárt!"
+            content.body = (stepIndex == executionPlan.count - 1)
+                ? "Az összes időzítés lejárt!".localized(for: lang)
+                : "Időzítés lejárt!".localized(for: lang)
             content.sound = .defaultRingtone
             content.interruptionLevel = .timeSensitive
             content.categoryIdentifier = "TIMER_EXPIRED"
@@ -476,7 +504,7 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
     private func setupNotificationCategories() {
         let acknowledgeAction = UNNotificationAction(
             identifier: "ACKNOWLEDGE_ACTION",
-            title: "Következő szakasz indítása",
+            title: "Következő szakasz indítása".localized(for: currentLanguage),
             options: [.foreground]
         )
         let category = UNNotificationCategory(
@@ -513,29 +541,49 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
     }
 
     private func notifyAndHaptic(title: String) {
+        let lang = currentLanguage
+        let defaultTitle = "Intervallum".localized(for: lang)
+        let rawTitle = title.trimmingCharacters(in: .whitespaces)
+        let displayTitle = rawTitle.isEmpty
+            ? defaultTitle
+            : rawTitle.localized(for: lang)
+        let bodyText = "Új szakasz kezdődik".localized(for: lang)
+        let speechSuffix = "szakasz kezdődik".localized(for: lang)
+
         let content = UNMutableNotificationContent()
-        content.title = title.isEmpty ? "Intervallum" : title
-        content.body = "Új szakasz kezdődik"
+        content.title = displayTitle
+        content.body = bodyText
         content.sound = .defaultRingtone
         content.interruptionLevel = .timeSensitive
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
         //playSound()
-        triggerSpeechInBackground(text: title + " " + String(localized: "szakasz kezdődik"))
+        triggerSpeechInBackground(text: displayTitle + " " + speechSuffix)
         playHaptic()
     }
 
     private func notifyExpiration(title: String, isSequenceEnd: Bool = false) {
+        let lang = currentLanguage
+        let defaultTitle = "Intervallum".localized(for: lang)
+        let rawTitle = title.trimmingCharacters(in: .whitespaces)
+        let displayTitle = rawTitle.isEmpty
+            ? defaultTitle
+            : rawTitle.localized(for: lang)
+        let bodyText = isSequenceEnd
+            ? "Az összes időzítés lejárt!".localized(for: lang)
+            : "Időzítés lejárt!".localized(for: lang)
+        let speechSuffix = "szakasz lejárt".localized(for: lang)
+
         let content = UNMutableNotificationContent()
-        content.title = title.isEmpty ? "Intervallum" : title
-        content.body = isSequenceEnd ? "Az összes időzítés lejárt!" : "Időzítés lejárt!"
+        content.title = displayTitle
+        content.body = bodyText
         content.sound = .defaultRingtone
         content.interruptionLevel = .timeSensitive
         content.categoryIdentifier = "TIMER_EXPIRED"
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
         //playSound()
-        triggerSpeechInBackground(text: title + " " + String(localized: "szakasz lejárt"))
+        triggerSpeechInBackground(text: displayTitle + " " + speechSuffix)
         playHaptic()
     }
 

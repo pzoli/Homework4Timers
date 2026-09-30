@@ -163,6 +163,17 @@
         }
       }
     },
+    "Az összes időzítés lejárt!" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All timers have expired!"
+          }
+        }
+      }
+    },
     "Beállítások" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -170,6 +181,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Settings"
+          }
+        }
+      }
+    },
+    "Bemelegítés" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warmup"
           }
         }
       }
@@ -269,6 +291,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Paused"
+          }
+        }
+      }
+    },
+    "Fő szakasz" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Main section"
           }
         }
       }
@@ -480,6 +513,17 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Lépés %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "Levezetés" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cooldown"
           }
         }
       }
@@ -732,12 +776,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "section starting"
+            "value" : "section started"
           }
         }
       }
     },
     "szakasz lejárt" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -836,7 +881,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "New section starting"
+            "value" : "New section started"
           }
         }
       }

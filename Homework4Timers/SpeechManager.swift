@@ -10,8 +10,6 @@ import SwiftUI
 import AVFAudio
 
 final class SpeechManager: NSObject {
-    @AppStorage("appLanguage") private var appLanguage: String = "hu-HU"
-
     static let shared = SpeechManager()
     private let synthesizer = AVSpeechSynthesizer()
     
@@ -56,7 +54,16 @@ final class SpeechManager: NSObject {
         }
         
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: appLanguage)
+        let lang = UserDefaults.standard.string(forKey: "appLanguage") ?? "hu"
+        let voiceLanguage: String
+        if lang.hasPrefix("en") {
+            voiceLanguage = "en-US"
+        } else if lang.hasPrefix("hu") {
+            voiceLanguage = "hu-HU"
+        } else {
+            voiceLanguage = lang
+        }
+        utterance.voice = AVSpeechSynthesisVoice(language: voiceLanguage)
         
         synthesizer.speak(utterance)
     }
