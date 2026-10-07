@@ -13,3 +13,4 @@ If you like this app, please [buy me a caffee](https://buymeacoffee.com/pzoli).
 ![Runing intervals 7](docs/IMG_0019.PNG)
 ![Runing intervals 8](docs/IMG_0025.PNG)
 ![Runing intervals 9](docs/IMG_0026.PNG)
+![Runing intervals 10](docs/IMG_0001.PNG)
