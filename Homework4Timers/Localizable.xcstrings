@@ -299,7 +299,15 @@
       }
     },
     "Előző szakasz" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous Section"
+          }
+        }
+      }
     },
     "English" : {
       "extractionState" : "manual",
@@ -314,6 +322,7 @@
     },
     "Exportálás" : {
       "extractionState" : "manual",
+      "generatesSymbol" : false,
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -324,7 +333,15 @@
       }
     },
     "Exportálás..." : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export..."
+          }
+        }
+      }
     },
     "Felfüggesztés" : {
       "extractionState" : "manual",
@@ -426,7 +443,15 @@
       }
     },
     "Importálás..." : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import..."
+          }
+        }
+      }
     },
     "Intervallum" : {
       "extractionState" : "manual",
@@ -528,7 +553,15 @@
       }
     },
     "Következő szakasz" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next Section"
+          }
+        }
+      }
     },
     "Következő szakasz indítása" : {
       "extractionState" : "manual",
@@ -660,9 +693,6 @@
           }
         }
       }
-    },
-    "Mentés újaként..." : {
-
     },
     "Mentés újként..." : {
       "extractionState" : "manual",
@@ -830,7 +860,15 @@
       }
     },
     "Összes exportálása..." : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export All..."
+          }
+        }
+      }
     },
     "Perc" : {
       "extractionState" : "manual",
@@ -866,7 +904,15 @@
       }
     },
     "Sablonok importálása" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Templates"
+          }
+        }
+      }
     },
     "Sorozat mentése újként" : {
       "extractionState" : "manual",
@@ -1040,5 +1086,5 @@
       }
     }
   },
-  "version" : "1.0"
+  "version" : "1.1"
 }

@@ -95,7 +95,7 @@ struct TimerContentView: View {
                                 savePresetName = activePresetName.isEmpty ? "" : String(format: formatStr, activePresetName)
                                 isShowingSaveAsNewAlert = true
                             } label: {
-                                Label("Mentés újaként...", systemImage: "square.and.arrow.down.on.square")
+                                Label("Mentés újként...", systemImage: "square.and.arrow.down.on.square")
                             }
                             .disabled(storedItems.isEmpty)
                         } label: {

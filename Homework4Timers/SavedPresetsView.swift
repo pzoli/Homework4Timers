@@ -293,7 +293,7 @@ struct SavedPresetsView: View {
             Button {
                 exportSinglePreset(list)
             } label: {
-                Label("Exportálás...", systemImage: "square.and.arrow.up")
+                Label("Exportálás", systemImage: "square.and.arrow.up")
             }
             
             Button {
