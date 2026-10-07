@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct SavedPresetsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("appLanguage") private var appLanguage: String = "hu"
     
     @Query(sort: \SavedIntervalList.createdAt, order: .reverse) private var savedLists: [SavedIntervalList]
     
@@ -69,6 +70,8 @@ struct SavedPresetsView: View {
                 )
                 .overlay(alignment: .bottom) { toastOverlay }
         }
+        .environment(\.locale, Locale(identifier: appLanguage))
+        .id(appLanguage)
     }
     
     @ViewBuilder
@@ -266,7 +269,11 @@ struct SavedPresetsView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.down.doc")
-                        Text(list.id.uuidString == activePresetIDString ? "Újratöltés" : "Betöltés")
+                        if list.id.uuidString == activePresetIDString {
+                            Text("Újratöltés")
+                        } else {
+                            Text("Betöltés")
+                        }
                     }
                     .font(.subheadline.weight(.semibold))
                 }

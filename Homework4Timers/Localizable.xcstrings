@@ -64,13 +64,49 @@
       }
     },
     "%lld elem" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld item"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld items"
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "%lld perc" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld min"
+          }
+        }
+      }
     },
     "%lld× ismétlés" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld× repeat"
+          }
+        }
+      }
     },
     "•" : {
 
@@ -274,7 +310,15 @@
       }
     },
     "Exportálás" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export"
+          }
+        }
+      }
     },
     "Exportálás..." : {
 
@@ -437,7 +481,15 @@
       }
     },
     "Ismétlések száma: %lld" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Number of repeats: %lld"
+          }
+        }
+      }
     },
     "Jelenlegi mentése újként" : {
       "extractionState" : "manual",
@@ -501,6 +553,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Play"
+          }
+        }
+      }
+    },
+    "Lépés %1$lld/%2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Step %1$lld/%2$lld"
           }
         }
       }
@@ -626,7 +689,15 @@
       }
     },
     "Mentsd el a jelenlegi intervallum sorozatodat, vagy importálj sablonokat JSON fájlból." : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save your current interval sequence or import templates from a JSON file."
+          }
+        }
+      }
     },
     "Név szerkesztése" : {
       "extractionState" : "manual",
@@ -739,7 +810,15 @@
       }
     },
     "OK" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
     },
     "Összes exportálása..." : {
 

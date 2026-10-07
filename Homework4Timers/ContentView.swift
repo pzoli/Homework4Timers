@@ -18,6 +18,7 @@ struct TimerContentView: View {
     @AppStorage("didInsertSamples") private var didInsertSamples: Bool = false
     @AppStorage("activePresetID") private var activePresetIDString: String = ""
     @AppStorage("activePresetName") private var activePresetName: String = ""
+    @AppStorage("appLanguage") private var appLanguage: String = "hu"
     
     @State private var activeSheetItem: EditSheetItem? = nil
     @State private var isShowingPresetsSheet: Bool = false
@@ -78,10 +79,14 @@ struct TimerContentView: View {
                             Button {
                                 handleSaveAction()
                             } label: {
-                                Label(
-                                    currentLoadedPreset != nil ? "Mentés (\(currentLoadedPreset!.name))" : "Mentés",
-                                    systemImage: "square.and.arrow.down"
-                                )
+                                if let preset = currentLoadedPreset {
+                                    Label(
+                                        String(format: String(localized: "Mentés (%@)"), preset.name),
+                                        systemImage: "square.and.arrow.down"
+                                    )
+                                } else {
+                                    Label("Mentés", systemImage: "square.and.arrow.down")
+                                }
                             }
                             .disabled(storedItems.isEmpty)
                             
@@ -192,6 +197,8 @@ struct TimerContentView: View {
                 }
             }
         }
+        .environment(\.locale, Locale(identifier: appLanguage))
+        .id(appLanguage)
     }
     
     private var activePresetHeader: some View {
@@ -200,9 +207,15 @@ struct TimerContentView: View {
                 HStack(spacing: 4) {
                     Text("Betöltött sablon:")
                         .foregroundStyle(.secondary)
-                    Text(activePresetName.isEmpty ? "Nincs (Egyéni)" : activePresetName)
-                        .bold()
-                        .foregroundStyle(activePresetName.isEmpty ? .secondary : .primary)
+                    if activePresetName.isEmpty {
+                        Text("Nincs (Egyéni)")
+                            .bold()
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(activePresetName)
+                            .bold()
+                            .foregroundStyle(.primary)
+                    }
                 }
             } icon: {
                 Image(systemName: "folder.fill")
@@ -536,6 +549,7 @@ struct TimerContentView: View {
 
 struct IntervalEditSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("appLanguage") private var appLanguage: String = "hu"
     
     let itemToEdit: TimerIntervalEntity?
     let initialType: IntervalItemType
@@ -622,7 +636,7 @@ struct IntervalEditSheet: View {
                     }
                 }
             }
-            .navigationTitle(itemToEdit == nil ? "Új felvétel" : "Szerkesztés")
+            .navigationTitle(itemToEdit == nil ? LocalizedStringKey("Új felvétel") : LocalizedStringKey("Szerkesztés"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -631,7 +645,7 @@ struct IntervalEditSheet: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(itemToEdit == nil ? "Hozzáadás" : "Mentés") {
+                    Button(itemToEdit == nil ? LocalizedStringKey("Hozzáadás") : LocalizedStringKey("Mentés")) {
                         let m = Int(minutesText) ?? 1
                         let l = labelText.trimmingCharacters(in: .whitespaces)
                         onSave(itemType, m, l, repeatCount)
@@ -641,6 +655,8 @@ struct IntervalEditSheet: View {
                 }
             }
         }
+        .environment(\.locale, Locale(identifier: appLanguage))
+        .id(appLanguage)
     }
 }
 

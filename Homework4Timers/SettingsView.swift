@@ -13,6 +13,9 @@ struct SettingsView: View {
                         Text("Magyar").tag("hu")
                         Text("English").tag("en")
                     }
+                    .onChange(of: appLanguage) { _, newValue in
+                        UserDefaults.standard.set([newValue], forKey: "AppleLanguages")
+                    }
                 }
                 
                 Section(
@@ -32,6 +35,8 @@ struct SettingsView: View {
                 }
             }
         }
+        .environment(\.locale, Locale(identifier: appLanguage))
+        .id(appLanguage)
     }
 }
 
