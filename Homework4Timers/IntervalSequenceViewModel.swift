@@ -194,17 +194,62 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
         guard isRunning, isWaitingForAcknowledgment, let current = currentStepIndex else { return }
         let nextIndex = current + 1
         if nextIndex < executionPlan.count {
-            isWaitingForAcknowledgment = false
-            currentStepIndex = nextIndex
-            currentStepStartDate = Date()
-            pausedRemainingSeconds = nil
-            updateUIForStep(nextIndex)
-            scheduleNotificationForSingleStep(stepIndex: nextIndex)
-            notifyAndHaptic(title: executionPlan[nextIndex].item.label)
-            lastNotifiedStepIndex = nextIndex
-            refreshRemainingTime()
+            jumpToStep(nextIndex)
         } else {
             stopInternal()
+        }
+    }
+
+    func nextStep() {
+        guard isRunning, let current = currentStepIndex else { return }
+        let nextIndex = current + 1
+        if nextIndex < executionPlan.count {
+            jumpToStep(nextIndex)
+        } else {
+            stopInternal()
+        }
+    }
+
+    func previousStep() {
+        guard isRunning, let current = currentStepIndex else { return }
+        let prevIndex = current - 1
+        if prevIndex >= 0 {
+            jumpToStep(prevIndex)
+        }
+    }
+
+    private func jumpToStep(_ index: Int) {
+        guard index >= 0, index < executionPlan.count else { return }
+        
+        let wasPaused = isPaused
+        isWaitingForAcknowledgment = false
+        currentStepIndex = index
+        let now = Date()
+        currentStepStartDate = now
+        
+        var cumulativeBefore: Double = 0
+        for i in 0..<index {
+            cumulativeBefore += Double(max(0, executionPlan[i].item.minutes * 60))
+        }
+        sequenceStartDate = now.addingTimeInterval(-cumulativeBefore)
+        
+        if autoContinue {
+            scheduleAllNotificationsForSequence(fromStepIndex: index)
+        } else {
+            scheduleNotificationForSingleStep(stepIndex: index)
+        }
+        
+        if wasPaused {
+            pausedRemainingSeconds = max(0, executionPlan[index].item.minutes * 60)
+        } else {
+            pausedRemainingSeconds = nil
+            notifyAndHaptic(title: executionPlan[index].item.label)
+            lastNotifiedStepIndex = index
+        }
+        
+        updateUIForStep(index)
+        if !wasPaused {
+            refreshRemainingTime()
         }
     }
 
@@ -300,7 +345,6 @@ final class TimerSequenceViewModel: NSObject, ObservableObject, UNUserNotificati
             
             for (idx, step) in plan.enumerated() {
                 let duration = Double(max(0, step.item.minutes * 60))
-                let stepStart = cumulative
                 let stepEnd = cumulative + duration
                 
                 if totalElapsed < stepEnd {

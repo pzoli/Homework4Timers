@@ -95,7 +95,7 @@ struct TimerContentView: View {
                                 savePresetName = activePresetName.isEmpty ? "" : String(format: formatStr, activePresetName)
                                 isShowingSaveAsNewAlert = true
                             } label: {
-                                Label("Mentés újként...", systemImage: "square.and.arrow.down.on.square")
+                                Label("Mentés újaként...", systemImage: "square.and.arrow.down.on.square")
                             }
                             .disabled(storedItems.isEmpty)
                         } label: {
@@ -338,7 +338,19 @@ struct TimerContentView: View {
     }
     
     private var actionButtons: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
+            Button {
+                viewModel.previousStep()
+            } label: {
+                Image(systemName: "backward.fill")
+                    .font(.title3)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.blue)
+            .disabled(!viewModel.isRunning || (viewModel.currentStepIndex ?? 0) <= 0)
+            .accessibilityLabel("Előző szakasz")
+
             Button {
                 if viewModel.isWaitingForAcknowledgment {
                     viewModel.acknowledgeNextStep()
@@ -380,6 +392,18 @@ struct TimerContentView: View {
             .tint(.red)
             .disabled(!viewModel.isRunning)
             .accessibilityLabel("Leállítás")
+
+            Button {
+                viewModel.nextStep()
+            } label: {
+                Image(systemName: "forward.fill")
+                    .font(.title3)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.blue)
+            .disabled(!viewModel.isRunning || (viewModel.currentStepIndex ?? 0) >= (viewModel.totalStepsCount ?? 1) - 1)
+            .accessibilityLabel("Következő szakasz")
         }
     }
     

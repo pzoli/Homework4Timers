@@ -298,6 +298,9 @@
         }
       }
     },
+    "Előző szakasz" : {
+
+    },
     "English" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -524,6 +527,9 @@
         }
       }
     },
+    "Következő szakasz" : {
+
+    },
     "Következő szakasz indítása" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -654,6 +660,9 @@
           }
         }
       }
+    },
+    "Mentés újaként..." : {
+
     },
     "Mentés újként..." : {
       "extractionState" : "manual",
