@@ -81,7 +81,7 @@ struct TimerContentView: View {
                             } label: {
                                 if let preset = currentLoadedPreset {
                                     Label(
-                                        String(format: String(localized: "Mentés (%@)"), preset.name),
+                                        String(format: "Mentés (%@)".localized(for: appLanguage), preset.name),
                                         systemImage: "square.and.arrow.down"
                                     )
                                 } else {
@@ -91,7 +91,7 @@ struct TimerContentView: View {
                             .disabled(storedItems.isEmpty)
                             
                             Button {
-                                let formatStr = String(localized: "%@ másolata")
+                                let formatStr = "%@ másolata".localized(for: appLanguage)
                                 savePresetName = activePresetName.isEmpty ? "" : String(format: formatStr, activePresetName)
                                 isShowingSaveAsNewAlert = true
                             } label: {
